@@ -1,7 +1,16 @@
-use std::{collections::HashMap, fmt::Display, fs::File, io::BufReader, time::Instant};
-use ranges::{GenericRange, OperationResult};
+use ranges::{GenericRange, OperationResult, Ranges};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    fs::File,
+    io::BufReader,
+    ops::{Bound, RangeBounds},
+    time::Instant,
+};
 
 use ranges::GenericRange as Range;
+type Rg = Range<u64>;
+type Rgs = Ranges<u64>;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -26,18 +35,18 @@ fn main() {
         .map(|s| s.parse::<u64>().unwrap())
         .collect();
 
-    let seed_ranges: Vec<Range<u64>> = if is_part2 {
+    let seed_ranges: Vec<Rg> = if is_part2 {
         seeds
             .chunks(2)
             .map(|c| {
                 let start = c[0];
                 let len = c[1];
 
-                start..(start + len)
+                (start..(start + len)).into()
             })
             .collect()
     } else {
-        seeds.iter().map(|&s| s..s + 1).collect()
+        seeds.iter().map(|&s| (s..s + 1).into()).collect()
     };
 
     dbg!(&seed_ranges);
@@ -64,21 +73,18 @@ fn main() {
     let mut locations = vec![];
 
     for seed_range in seed_ranges {
-        println!("Seed range = {} samples", seed_range.end - seed_range.start);
         let start = Instant::now();
-        for seed in seed_range {
-            let soil = soil.lookup(seed);
-            let fert = fertilizer.lookup(soil);
-            let water = water.lookup(fert);
-            let light = light.lookup(water);
-            let temp = temperature.lookup(light);
-            let hum = humidity.lookup(temp);
-            let loc = location.lookup(hum);
+        let soil = soil.lookup_ranges(seed_range);
+        let fert = fertilizer.lookup_ranges(soil);
+        let water = water.lookup_ranges(fert);
+        let light = light.lookup_ranges(water);
+        let temp = temperature.lookup_ranges(light);
+        let hum = humidity.lookup_ranges(temp);
+        let loc = location.lookup_ranges(hum);
 
-            // println!("Seed {seed} -> Location {loc}");
+        // println!("Seed {seed} -> Location {loc}");
 
-            locations.push(loc);
-        }
+        locations.push(loc);
         let end = Instant::now();
         println!("{:?}", end - start);
     }
@@ -133,6 +139,7 @@ impl Section {
         Section { title, ranges }
     }
 
+    /// Finds a single seed in this section
     pub fn lookup(&self, input: u64) -> u64 {
         for range in &self.ranges {
             if range.src_range.contains(&input) {
@@ -146,22 +153,48 @@ impl Section {
         input
     }
 
-    pub fn divide(&self, input: Range<u64>) -> DivideResult {
-        let mut map: HashMap<SectionRange, Option<GenericRange<u64>>> = HashMap::new();
-        for range in &self.ranges {
-            if let OperationResult::Single(intersect) = range.src_range.intersect(input.into()) {
+    /// Finds all mapped ranges for the provided seed range.
+    pub fn lookup_ranges(&self, input: Rgs) -> Rgs {
+        let mut mapped_pairs: Vec<(Rgs, Rgs)> = vec![];
 
-            map.insert(range.clone(), Some(intersect));
-            }
+        // Find where input intersects with map
+        for range in &self.ranges {
+            // match input.intersect(range.src_range) {
+            //     _ => {}
+            //     OperationResult::Single(intersect) => {
+            //         let intersect_out = range.transform(intersect);
+            //         mapped_pairs.push((intersect, intersect_out));
+            //     }
+            // }
+            let src_ranges = Rgs::from(range.src_range);
+            let src_intersect = src_ranges.intersect(input);
+            let transformed_intersect = src_intersect.as_slice().iter().map(|r| )
         }
 
-        DivideResult { in_range: map, unmapped: vec![] }
+        let mapped_sources = Rgs::from(
+            mapped_pairs
+                .iter()
+                .map(|(p, _)| p.clone())
+                .collect::<Vec<Rg>>(),
+        );
+
+        let input_ranges = Rgs::from(input);
+        let unmapped = input_ranges.difference(mapped_sources);
+
+        let mapped_dest = Rgs::from(
+            mapped_pairs
+                .iter()
+                .map(|(_, t)| t.clone())
+                .collect::<Vec<Rg>>(),
+        );
+        mapped_dest.union(unmapped)
     }
 }
 
-struct DivideResult {
-    in_range: HashMap<SectionRange, Option<Range<u64>>>,
-    unmapped: Vec<Range<u64>>,
+struct SectionPath {
+    input: Rg,
+    in_range: HashMap<SectionRange, Option<Rg>>,
+    unmapped: Rgs,
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -169,8 +202,8 @@ struct SectionRange {
     source: u64,
     destination: u64,
     margin: u64,
-    src_range: Range<u64>,
-    dst_range: Range<u64>,
+    src_range: Rg,
+    dst_range: Rg,
 }
 
 impl SectionRange {
@@ -190,6 +223,27 @@ impl SectionRange {
             dst_range: (destination..destination + margin).into(),
         }
     }
+
+    /// Gets the offset of the destination relative to source.
+    pub fn offset(&self) -> i64 {
+        self.destination as i64 - self.source as i64
+    }
+
+    /// Shifts the input range by as much needed, assumes input already in range of source.
+    pub fn transform(&self, input: Rgs) -> Rgs {
+        let mut outputs = vec![];
+        for r in input.as_slice() {
+        if let Bound::Included(start) = input.start_bound() {
+            if let Bound::Excluded(end) = input.end_bound() {
+                let offset = self.offset();
+                let new_start = *start as i64 + offset;
+                let new_end = *end as i64 + offset;
+                return (new_start as u64..new_end as u64).into();
+            }
+        }
+    }
+        panic!("Not supposed to have ranges with different bound kinds.");
+    }
 }
 
 impl Display for SectionRange {
@@ -197,4 +251,3 @@ impl Display for SectionRange {
         write!(f, "({:?} / {:?})", self.src_range, self.dst_range)
     }
 }
-
