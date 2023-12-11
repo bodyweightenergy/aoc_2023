@@ -1,4 +1,5 @@
 use ranges::{GenericRange, OperationResult, Ranges};
+use structopt::StructOpt;
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -6,23 +7,23 @@ use std::{
     time::Instant,
 };
 
+mod opt;
+
+use opt::Opt;
+
 use ranges::GenericRange as Range;
 type Rg = Range<u64>;
 type Rgs = Ranges<u64>;
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    // let args: Vec<String> = std::env::args().collect();
 
-    let is_part2 = args.contains(&"part2".to_string());
-    let is_example = args.contains(&"example".to_string());
+    let opt = Opt::from_args();
+    // let is_part2 = args.contains(&"part2".to_string());
+    // let is_example = args.contains(&"example".to_string());
 
-    let input_file = if is_example {
-        "./example.txt"
-    } else {
-        "./input_1.txt"
-    };
 
-    let input = std::fs::read_to_string(input_file).unwrap();
+    let input = std::fs::read_to_string(&opt.file).unwrap();
     let section_txts: Vec<&str> = input.split("\r\n\r\n").collect();
 
     let seeds: Vec<u64> = section_txts
@@ -33,7 +34,7 @@ fn main() {
         .map(|s| s.parse::<u64>().unwrap())
         .collect();
 
-    let seed_ranges: Vec<Rg> = if is_part2 {
+    let seed_ranges: Vec<Rg> = if opt.is_part1 {
         seeds
             .chunks(2)
             .map(|c| {
