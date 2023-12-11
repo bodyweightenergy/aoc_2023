@@ -1,0 +1,43 @@
+# Part 2 Algorithm
+
+We use range operations (I'm using the `ranges` Rust library).
+
+
+## Example
+
+Given a seed range:
+
+```
+seed                              [#########################]
+                                  |     |      |       |    |        
+seed-to-soil:                     |     |      |       |    |
+r1 (margin +2)                    |     [------]       |    |
+r2 (margin -3)                    |     |      |       [-----------]
+r3                    [-------]   |     |      |       |    |
+                                  |     |      |       |    |
+1. Intersect seed with r-maps:    |     |      |       |    |
+                                  |     |      |       |    |
+r1-intersect                      |     [--r1--]       |    |
+r2-intersect                      |     |      |       [-r2-]
+r3-intersect (Empty)              |     |      |       |
+                                  |     |      |       |
+2. Pass through unmapped seed:    |     |      |       |
+                                  |     |      |       |
+unmapped                          [-----]      [-------]
+
+3. Translate the mapped ranges:
+
+                                        --> +2
+r1-offset                         |       [------]     |    |
+                                                    <-- -3
+r2-offset                         |     |      |    [----]    
+
+4. Combine the translated and unmapped ranges (union operation):
+
+unmapped                          [-----]      [-------]    
+r1-offset                                 [------]         
+r2-offset                                           [----]  
+union                             [-----] [--------------]      
+
+5. Repeat, using the last union as the seed for the next map section.
+```
