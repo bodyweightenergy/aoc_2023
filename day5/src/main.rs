@@ -34,7 +34,7 @@ fn main() {
         .map(|s| s.parse::<u64>().unwrap())
         .collect();
 
-    let seed_ranges: Vec<Rg> = if opt.is_part1 {
+    let seed_ranges: Vec<Rg> = if !opt.is_part1 {
         seeds
             .chunks(2)
             .map(|c| {
