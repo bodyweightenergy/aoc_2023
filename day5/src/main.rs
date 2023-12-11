@@ -1,15 +1,12 @@
 use ranges::{GenericRange, OperationResult, Ranges};
-use structopt::StructOpt;
+use tools::Opt;
+
 use std::{
     collections::HashMap,
     fmt::Display,
     ops::{Bound, RangeBounds},
     time::Instant,
 };
-
-mod opt;
-
-use opt::Opt;
 
 use ranges::GenericRange as Range;
 type Rg = Range<u64>;
@@ -18,12 +15,12 @@ type Rgs = Ranges<u64>;
 fn main() {
     // let args: Vec<String> = std::env::args().collect();
 
-    let opt = Opt::from_args();
+    let opt = Opt::load();
     // let is_part2 = args.contains(&"part2".to_string());
     // let is_example = args.contains(&"example".to_string());
 
 
-    let input = std::fs::read_to_string(&opt.file).unwrap();
+    let input = std::fs::read_to_string(&opt.file()).unwrap();
     let section_txts: Vec<&str> = input.split("\r\n\r\n").collect();
 
     let seeds: Vec<u64> = section_txts

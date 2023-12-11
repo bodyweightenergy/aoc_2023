@@ -1,18 +1,9 @@
 [package]
-name = "day5"
+name = "day1"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ranges = "*"
 tools = { path = "../tools" }
-
-[[bin]]
-name = "main"
-path = "src/main.rs"
-
-[[bin]]
-name = "sandbox"
-path = "src/sandbox.rs"

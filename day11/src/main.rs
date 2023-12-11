@@ -4,16 +4,14 @@ use std::{
 };
 
 use itertools::Itertools;
-use opt::Opt;
-use structopt::StructOpt;
+use tools::Opt;
 
-mod opt;
 
 fn main() {
-    let opt = Opt::from_args();
-    println!("Options: file={:?}, part1={}", opt.file, opt.is_part1);
+    let opt = Opt::load();
+    println!("Options: file={:?}, part1={}", opt.file(), opt.is_part1);
 
-    let input = File::open(&opt.file).unwrap();
+    let input = File::open(&opt.file()).unwrap();
     let reader = BufReader::new(input);
     let input_lines: Vec<String> = reader.lines().filter_map(|f| f.ok()).collect();
     let max_x = input_lines.first().unwrap().len();
