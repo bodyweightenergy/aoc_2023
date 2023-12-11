@@ -11,8 +11,8 @@ Given a seed range:
 seed                              [#########################]
                                   |     |      |       |    |        
 seed-to-soil:                     |     |      |       |    |
-r1 (margin +2)                    |     [------]       |    |
-r2 (margin -3)                    |     |      |       [-----------]
+r1 (offset +2)                    |     [------]       |    |
+r2 (offset -3)                    |     |      |       [-----------]
 r3                    [-------]   |     |      |       |    |
                                   |     |      |       |    |
 1. Intersect seed with r-maps:    |     |      |       |    |
