@@ -9,5 +9,9 @@ edition = "2021"
 ranges = "*"
 
 [[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
 name = "sandbox"
 path = "src/sandbox.rs"

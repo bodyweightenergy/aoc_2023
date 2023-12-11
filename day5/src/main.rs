@@ -2,8 +2,6 @@ use ranges::{GenericRange, OperationResult, Ranges};
 use std::{
     collections::HashMap,
     fmt::Display,
-    fs::File,
-    io::BufReader,
     ops::{Bound, RangeBounds},
     time::Instant,
 };
@@ -49,7 +47,7 @@ fn main() {
         seeds.iter().map(|&s| (s..s + 1).into()).collect()
     };
 
-    dbg!(&seed_ranges);
+    // dbg!(&seed_ranges);
     let section_rest: Vec<&&str> = section_txts.iter().skip(1).collect();
 
     let sections: Vec<Section> = section_rest.iter().map(|st| Section::new(st)).collect();
@@ -70,11 +68,12 @@ fn main() {
     let humidity = sections.iter().find(|s| s.title.dst == "humidity").unwrap();
     let location = sections.iter().find(|s| s.title.dst == "location").unwrap();
 
-    let mut locations = vec![];
+    let mut locations = Rgs::new();
 
     for seed_range in seed_ranges {
         let start = Instant::now();
-        let soil = soil.lookup_ranges(seed_range);
+        let seed = Rgs::from(seed_range);
+        let soil = soil.lookup_ranges(seed);
         let fert = fertilizer.lookup_ranges(soil);
         let water = water.lookup_ranges(fert);
         let light = light.lookup_ranges(water);
@@ -84,12 +83,12 @@ fn main() {
 
         // println!("Seed {seed} -> Location {loc}");
 
-        locations.push(loc);
+        locations = locations.union(loc);
         let end = Instant::now();
         println!("{:?}", end - start);
     }
 
-    let closest = locations.iter().min().unwrap();
+    let closest = find_smallest_in_ranges(locations);
 
     println!("Closest location = {closest}");
 }
@@ -167,27 +166,27 @@ impl Section {
             //     }
             // }
             let src_ranges = Rgs::from(range.src_range);
-            let src_intersect = src_ranges.intersect(input);
-            let transformed_intersect = src_intersect.as_slice().iter().map(|r| )
+            let src_intersect = src_ranges.intersect(input.clone());
+            let transformed_intersect = range.transform(&src_intersect);
+
+            mapped_pairs.push((src_intersect, transformed_intersect));
         }
 
-        let mapped_sources = Rgs::from(
-            mapped_pairs
-                .iter()
-                .map(|(p, _)| p.clone())
-                .collect::<Vec<Rg>>(),
-        );
+        // Groups mapped sources
+        let mapped_sources = Rgs::from(mapped_pairs.iter().fold(Rgs::new(), |i, (s, t)| {
+            i.union(s.clone())
+        }));
 
-        let input_ranges = Rgs::from(input);
-        let unmapped = input_ranges.difference(mapped_sources);
+        // Diff input from mapped sources, to get unmapped sources
+        let unmapped = input.difference(mapped_sources);
 
-        let mapped_dest = Rgs::from(
-            mapped_pairs
-                .iter()
-                .map(|(_, t)| t.clone())
-                .collect::<Vec<Rg>>(),
-        );
-        mapped_dest.union(unmapped)
+        // Transform mapped sources into destinations
+        let mapped_dests = Rgs::from(mapped_pairs.iter().fold(Rgs::new(), |mut i, (s, t)| {
+            i.union(t.clone())
+        }));
+
+        // Combine transformed mapped destinations with unmapped sources/unmapped destinations
+        mapped_dests.union(unmapped)
     }
 }
 
@@ -230,20 +229,34 @@ impl SectionRange {
     }
 
     /// Shifts the input range by as much needed, assumes input already in range of source.
-    pub fn transform(&self, input: Rgs) -> Rgs {
+    pub fn transform(&self, input: &Rgs) -> Rgs {
         let mut outputs = vec![];
         for r in input.as_slice() {
-        if let Bound::Included(start) = input.start_bound() {
-            if let Bound::Excluded(end) = input.end_bound() {
-                let offset = self.offset();
-                let new_start = *start as i64 + offset;
-                let new_end = *end as i64 + offset;
-                return (new_start as u64..new_end as u64).into();
+            if let Bound::Included(start) = r.start_bound() {
+                if let Bound::Excluded(end) = r.end_bound() {
+                    let offset = self.offset();
+                    let new_start = *start as i64 + offset;
+                    let new_end = *end as i64 + offset;
+                    let transformed_r: Rg = (new_start as u64..new_end as u64).into();
+                    outputs.push(transformed_r);
+                }
             }
         }
+        Rgs::from(outputs)
     }
-        panic!("Not supposed to have ranges with different bound kinds.");
+}
+
+// Finds the smallest value in Ranges
+fn find_smallest_in_ranges(input: Rgs) -> u64 {
+    let mut smallest = u64::MAX;
+
+    for r in input.as_slice() {
+        if let Bound::Included(&start) = r.start_bound() {
+            smallest = smallest.min(start);
+        }
     }
+
+    smallest
 }
 
 impl Display for SectionRange {
