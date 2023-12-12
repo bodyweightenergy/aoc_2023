@@ -1,9 +1,8 @@
-use std::{cmp::Ordering, collections::HashMap, fmt::Display};
+use std::{cmp::Ordering, collections::HashMap};
 
 use itertools::Itertools;
 use tools::Opt;
 
-/// PART 2
 fn main() {
     let opt = Opt::load();
     let input = opt.input();
@@ -19,17 +18,19 @@ fn main() {
         })
         .collect();
 
-    // println!("Games = {games:#?}");
+    println!("Games = {games:#?}");
     games.sort_by(|a, b| a.hand.cmp(&b.hand));
     let mut total_score = 0;
     for (i, game) in games.iter().enumerate() {
         let rank = i + 1;
         let score = rank * game.bid;
         total_score += score;
-        // println!("#{rank}: {game:?} = {score}");
+        println!("#{rank}: {game:?} = {score}");
     }
 
     println!("Total score = {total_score}");
+    
+    
 }
 
 #[derive(Debug)]
@@ -38,10 +39,8 @@ struct Game {
     bid: usize,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Card {
-    // J weakest individually
-    J = 1,
     C2 = 2,
     C3 = 3,
     C4 = 4,
@@ -51,36 +50,10 @@ enum Card {
     C8 = 8,
     C9 = 9,
     T = 10,
-    Q = 11,
-    K = 12,
-    A = 13,
-}
-
-impl Display for Card {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let letter = match self {
-            Card::J => 'J',
-            Card::C2 => '2',
-            Card::C3 => '3',
-            Card::C4 => '4',
-            Card::C5 => '5',
-            Card::C6 => '6',
-            Card::C7 => '7',
-            Card::C8 => '8',
-            Card::C9 => '9',
-            Card::T => 'T',
-            Card::Q => 'Q',
-            Card::K => 'K',
-            Card::A => 'A',
-        };
-        write!(f, "{}", letter)
-    }
-}
-
-impl std::fmt::Debug for Card {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self, f)
-    }
+    J = 11,
+    Q = 12,
+    K = 13,
+    A = 14,
 }
 
 impl From<char> for Card {
@@ -137,36 +110,22 @@ impl PartialOrd for Hand {
 
 impl Ord for Hand {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let self_strength = self.hand_type.strength();
-        let other_strength = other.hand_type.strength();
+        let self_rank = self.hand_type.strength();
+        let other_rank = other.hand_type.strength();
 
-        if self_strength > other_strength {
+        if self_rank > other_rank {
             Ordering::Greater
-        } else if other_strength > self_strength {
+        } else if other_rank > self_rank {
             Ordering::Less
-        }
-        // Tie breaker
-        else {
-            let card_pairs: Vec<(&Card, &Card)> =
-                self.cards.iter().zip(other.cards.iter()).collect();
-
-            let mut cmp = Ordering::Equal;
-            for (a, b) in &card_pairs {
+        } else {
+            for (a, b) in self.cards.iter().zip(other.cards.iter()) {
                 if a > b {
-                    cmp = Ordering::Greater;
-                    break;
+                    return Ordering::Greater;
                 } else if a < b {
-                    cmp = Ordering::Less;
-                    break;
+                    return Ordering::Less;
                 }
             }
-            if self.cards.contains(&Card::J) || other.cards.contains(&Card::J) {
-                println!(
-                    "Tie breaking Jokers: A: {:?} <--> B: {:?} = {:?}",
-                    self.cards, other.cards, cmp
-                );
-            }
-            cmp
+            Ordering::Equal
         }
     }
 }
@@ -207,7 +166,11 @@ impl HandType {
 
         let cards: Vec<Card> = stack.to_owned();
 
-        let sorted = HandType::count_cards(&cards);
+        let sorted = HandType::sort_cards(&cards);
+        println!("Sorted '{stack:?}':");
+        for (c, f) in &sorted {
+            println!("\t{c:?}: {f}");
+        }
 
         // Check FiveOfKind
         if sorted.len() == 1 {
@@ -278,20 +241,15 @@ impl HandType {
         }
     }
 
-    /// Counts card frequencies in a stack, and sorts them by most frequency, then by strength for equal frequency.
-    fn count_cards(stack: &[Card]) -> Vec<(Card, usize)> {
-        assert_eq!(stack.len(), 5);
-        let mut card_counts: HashMap<Card, usize> = HashMap::new();
+    fn sort_cards(stack: &[Card]) -> Vec<(Card, usize)> {
+        let mut unsorted: HashMap<Card, usize> = HashMap::new();
 
         for card in stack {
-            card_counts
-                .entry(*card)
-                .and_modify(|v| *v += 1)
-                .or_insert(1);
+            unsorted.entry(*card).and_modify(|v| *v += 1).or_insert(1);
         }
 
-        let mut sorted = card_counts
-            .iter()
+        let sorted = unsorted
+            .into_iter()
             .sorted_by(|a, b| {
                 if a.1 == b.1 {
                     b.0.cmp(&a.0)
@@ -299,29 +257,8 @@ impl HandType {
                     b.1.cmp(&a.1)
                 }
             })
-            .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<Vec<(Card, usize)>>();
 
-        println!("sorted (pre J) = {sorted:?}");
-
-        // Convert joker count to highest frequency card
-        if let Some(joker_count) = &card_counts.get(&Card::J) {
-            // If there are cards other than jokers
-            if sorted.len() > 1 {
-                let first_non_joker_idx = sorted.iter().position(|(c, _)| *c != Card::J).unwrap();
-                sorted[first_non_joker_idx].1 += *joker_count;
-
-                let joker_pos = sorted.iter().position(|c| c.0 == Card::J).unwrap();
-                sorted.remove(joker_pos);
-            }
-            // Five of Jokers
-            else {
-                // Convert to Aces
-                sorted[0].0 = Card::A;
-            }
-        }
-
-        println!("sorted (post J) = {sorted:?}");
         sorted
     }
 }
@@ -425,22 +362,15 @@ mod tests {
                 },
             ),
             (
-                "22AQK",
+                "22JQK",
                 HandType::OnePair {
                     pair: Card::C2,
-                    remainder: [Card::A, Card::K, Card::Q],
+                    remainder: [Card::K, Card::Q, Card::J],
                 },
             ),
             (
                 "23456",
                 HandType::HighCard([Card::C6, Card::C5, Card::C4, Card::C3, Card::C2]),
-            ),
-            (
-                "QJJJT",
-                HandType::FourOfKind {
-                    label: Card::Q,
-                    remainder: Card::T,
-                },
             ),
         ]);
 
@@ -449,31 +379,5 @@ mod tests {
 
             assert_eq!(hand.hand_type, h);
         }
-    }
-
-    #[test]
-    pub fn tie_break_joker() {
-        let a = Hand::new("JKKK2");
-        let b = Hand::new("QQQQ2");
-
-        let cmp = a.cmp(&b);
-
-        assert_eq!(cmp, Ordering::Less);
-    }
-
-    #[test]
-    pub fn five_joker() {
-        let jokers = Hand::new("JJJJJ");
-        let kings = Hand::new("KKKKK");
-
-        assert!(jokers < kings);
-    }
-
-    #[test]
-    pub fn four_joker_tie_breaker() {
-        let jokers = dbg!(Hand::new("QJJJT"));
-        let other = dbg!(Hand::new("KQQQQ"));
-
-        assert!(jokers < other);
     }
 }
