@@ -60,8 +60,8 @@ fn main() {
     let mut checker = StepChecker::new(&start_nodes);
 
     let mut checker_bw_ctr = BandwidthCounter::start_new("checker");
-    'outer: loop {
-        // 'outer: for _ in 0..100 {
+    // 'outer: loop {
+        'outer: for _ in 0..10 {
         let mut step = 0;
         for w in &workers {
             let next = w.next();

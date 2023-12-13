@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::Address;
 
 use std::collections::HashMap;
@@ -19,11 +21,13 @@ impl StepChecker {
         // Update this worker
         self.map.get_mut(worker).unwrap().push(steps);
 
-        #[cfg(debug)]
-        {
-            println!("New Val = #{worker} <= {steps}");
-            for (k, v) in &self.map {
-                println!("#{k} = {:?}", v);
+        // println!("New Val = #{worker} <= {steps}");
+        for (k, v) in &self.map {
+            // println!("#{k} = {:?}", v);
+            let deltas: Vec<usize> = v.windows(2).map(|w| w[1] - w[0]).unique().collect();
+            if deltas.len() > 0 {
+                println!("#{k} Deltas = {:?}", deltas);
+                let cycle = deltas[0];
             }
         }
 
@@ -48,21 +52,21 @@ impl StepChecker {
         //     }
         // }
 
-        let mut removed = false;
-        // Remove earliest elements if they are smaller than other vector earliest elements
-        // Since other vectors can't go back in time, anything before their earliest elements is invalid
-        let earliest_steps: Vec<usize> = self
-            .map
-            .values()
-            .filter(|vec| !vec.is_empty())
-            .map(|vec| *vec.first().unwrap())
-            .collect();
-        for (k, v) in self.map.iter_mut() {
-            while v.len() > 1 && earliest_steps.iter().any(|e| *e > v[0]) {
-                v.remove(0);
-                removed = true;
-            }
-        }
+        // let mut removed = false;
+        // // Remove earliest elements if they are smaller than other vector earliest elements
+        // // Since other vectors can't go back in time, anything before their earliest elements is invalid
+        // let earliest_steps: Vec<usize> = self
+        //     .map
+        //     .values()
+        //     .filter(|vec| !vec.is_empty())
+        //     .map(|vec| *vec.first().unwrap())
+        //     .collect();
+        // for (k, v) in self.map.iter_mut() {
+        //     while v.len() > 1 && earliest_steps.iter().any(|e| *e > v[0]) {
+        //         v.remove(0);
+        //         removed = true;
+        //     }
+        // }
 
         #[cfg(debug)]
         if removed {
@@ -90,5 +94,21 @@ mod tests {
             let addr = &ws[i % 3];
             checker.check(addr, i * 2);
         }
+    }
+
+    #[test]
+    pub fn lcm() {
+        let cycles = [
+            22199usize,
+            20513,
+            13207,
+            19951,
+            14893,
+            12083
+        ];
+
+        let lcm = cycles.iter().skip(1).fold(cycles[0], |acc, b| num_integer::lcm(acc, *b));
+
+        println!("LCM = {lcm}");
     }
 }
