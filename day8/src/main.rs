@@ -2,11 +2,11 @@ use std::{
     collections::{HashMap, VecDeque},
     fmt::{Debug, Display},
     sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc,
+        mpsc::{},
+        
     },
-    thread::{self, current, JoinHandle},
-    time::{Duration, Instant},
+    thread::{self, current},
+    time::{Instant},
 };
 
 use crossbeam_queue::SegQueue;
@@ -50,31 +50,31 @@ fn main() {
 
     let start_time = Instant::now();
 
-    let mut workers = Vec::<Worker>::new();
+    let mut workers = Vec::<worker::Worker>::new();
 
     for n in &start_nodes {
-        let worker = Worker::start(n.clone(), node_map.clone(), instructions.clone());
+        let worker = worker::Worker::start(n.clone(), node_map.clone(), instructions.clone());
         workers.push(worker);
     }
 
     let mut checker = StepChecker::new(&start_nodes);
 
-    let mut bw_ctr = BandwidthCounter::start_new("checker");
+    let mut checker_bw_ctr = BandwidthCounter::start_new("checker");
     'outer: loop {
         // 'outer: for _ in 0..100 {
         let mut step = 0;
         for w in &workers {
             let next = w.next();
-            step = next.step_count;
-            if checker.check(&w.start, next.step_count) {
-                println!("Eureka!! @ step {}", next.step_count);
+            step = next;
+            if checker.check(&w.start, next) {
+                println!("Eureka!! @ step {}", next);
                 break 'outer;
             }
         }
-        if bw_ctr.check() {
-            for w in &workers {
-                println!("#{}: {} in queue", w.start, w.end_queue.len());
-            }
+        if checker_bw_ctr.check() {
+            // for w in &workers {
+            //     println!("#{}: {} in queue", w.start, w.end_queue.len());
+            // }
             println!("Step @ {step}");
         }
     }
@@ -209,7 +209,7 @@ impl BandwidthCounter {
         let now = Instant::now();
         let elapsed = now - self.last_time;
 
-        if elapsed.as_secs() > 2 {
+        if elapsed.as_secs() > 5 {
             let bw = (self.last_count as f64 / elapsed.as_secs_f64()) as usize;
             let f = format_size(bw, DECIMAL);
             println!("{}: {f} step/sec", self.name);
@@ -221,112 +221,6 @@ impl BandwidthCounter {
     }
 }
 
-struct Worker {
-    start: Address,
-    thread: JoinHandle<()>,
-    stop_sender: Sender<()>,
-    end_queue: Arc<SegQueue<EndResult>>,
-}
-
-impl Worker {
-    pub fn start(
-        start_node: Address,
-        node_map: HashMap<Address, Node>,
-        instructions: Vec<Instruction>,
-    ) -> Self {
-        let (tx, rx) = channel();
-        let queue = Arc::new(SegQueue::new());
-        let queue_c = queue.clone();
-        let start_node_c = start_node.clone();
-
-        let t = thread::spawn(move || {
-            Self::run(node_map, instructions, start_node_c, queue_c, rx);
-        });
-
-        Self {
-            start: start_node,
-            thread: t,
-            stop_sender: tx,
-            end_queue: queue,
-        }
-    }
-
-    /// Stops this worker thread.
-    pub fn stop(&self) {
-        self.stop_sender.send(()).unwrap();
-    }
-
-    /// Gets all available results.
-    pub fn available_results(&self) -> Vec<EndResult> {
-        let mut results = vec![];
-        while let Some(r) = self.end_queue.pop() {
-            results.push(r);
-        }
-        results
-    }
-
-    /// Get next result
-    pub fn next(&self) -> EndResult {
-        loop {
-            if let Some(r) = self.end_queue.pop() {
-                return r;
-            }
-            thread::sleep(Duration::from_millis(1));
-        }
-    }
-
-    fn run(
-        node_map: HashMap<Address, Node>,
-        instructions: Vec<Instruction>,
-        start: Address,
-        end_queue: Arc<SegQueue<EndResult>>,
-        stop_recv: Receiver<()>,
-    ) {
-        let mut current_node = &start;
-        let mut step_ctr = 0usize;
-        let mut input_bw_ctr = BandwidthCounter::start_new(&format!("Input #{start}"));
-        let mut output_bw_ctr = BandwidthCounter::start_new(&format!("Output #{start}"));
-        loop {
-            for instruction in &instructions {
-                let mut z_found = false;
-                match instruction {
-                    Instruction::Right => {
-                        current_node = &node_map[current_node].right;
-                        if current_node.0[2] == 'Z' {
-                            z_found = true;
-                        }
-                    }
-                    Instruction::Left => {
-                        current_node = &node_map[current_node].left;
-                        if current_node.0[2] == 'Z' {
-                            z_found = true;
-                        }
-                    }
-                }
-                step_ctr += 1;
-    
-                if z_found {
-                    // println!("[{step_ctr}] = ({z_count}) ### {:?} ###", current_nodes);
-                    end_queue.push(EndResult {
-                        step_count: step_ctr,
-                        address: current_node.clone(),
-                    });
-                    output_bw_ctr.check();
-                }
-    
-                input_bw_ctr.check();
-    
-                if let Ok(()) = stop_recv.try_recv() {
-                    return;
-                }
-    
-                // Try to release CPU if working too fast
-                if end_queue.len() > 1000 {
-                    thread::sleep(Duration::from_millis(1));
-                }
-            }
-        }
-    }
-}
+mod worker;
 
 mod checker;
