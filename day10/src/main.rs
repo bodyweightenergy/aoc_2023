@@ -19,7 +19,7 @@ fn main() {
 
 struct Arena {
     tile_map: HashMap<Position, Tile>,
-    start_tile: Tile,
+    start_tile_pos: Position,
     max_width: usize,
     max_height: usize,
 }
@@ -27,10 +27,15 @@ struct Arena {
 impl Arena {
     pub fn new(lines: Vec<&str>) -> Self {
         let mut tile_map = HashMap::new();
+        let mut start_pos = None;
         for (y, line) in lines.iter().enumerate() {
             for (x, c) in line.chars().enumerate() {
+                let position = Position { x, y };
+                // Start tile
+                if c == 'S' {
+                    start_pos = Some(position.clone());
+                }
                 if let Some(tile_type) = TileType::from_char(c) {
-                    let position = Position { x, y };
                     let tile = Tile {
                         tile_type,
                         position: position.clone(),
@@ -40,29 +45,23 @@ impl Arena {
             }
         }
 
-        let start_tile = tile_map
-            .values()
-            .find(|t| t.tile_type == TileType::Start)
-            .expect("No S tile found.")
-            .clone();
-
         let max_width = lines[0].len();
         let max_height = lines.len();
 
         Arena {
             tile_map,
-            start_tile,
+            start_tile_pos: start_pos.unwrap(),
             max_width,
             max_height,
         }
     }
 
     /// Gets a neighbor tile, if it exists.
-    pub fn get_neighbor(&self, tile: &Tile, direction: Direction) -> Option<&Tile> {
-        let tile_pos = &tile.position;
+    pub fn get_adjacent(&self, position: &Position, direction: Direction) -> Option<Position> {
+        let tile_pos = &position;
         let x = tile_pos.x;
         let y = tile_pos.y;
-        let neighbor_pos = match direction {
+        let adj_pos = match direction {
             Direction::N => {
                 if y == 0 {
                     return None;
@@ -98,46 +97,94 @@ impl Arena {
                 }
             }
         };
-
-        self.tile_map.get(&neighbor_pos)
+        Some(adj_pos)
     }
 
-    pub fn start_tile_type(&self) -> TileType {
-        let start_tile_pos = &self.start_tile.position;
-        let neighbors = self.get_neighbors(&self.start_tile);
-        let keys:Vec<Direction> = neighbors.keys().copied().collect();
+    pub fn start_tile(&self) -> Tile {
+        let adjacents = self.get_adjacents(&self.start_tile_pos);
+        let adjacent_tiles: Vec<(Direction, TileType)> = adjacents
+            .iter()
+            .map(|(dir, pos)| (*dir, self.tile_map.get(pos).unwrap().tile_type))
+            .collect();
 
-        if keys.contains(&Direction::N) {
-            if keys.contains(&Direction::W) {
+        // Adjacent tile type is inverted (e.g. adjacent west connects to start tile east)
+        let mut valid_dirs = vec![];
+        for (adj_dir, adj_type) in adjacent_tiles {
+            match adj_dir {
+                Direction::N => match adj_type {
+                    TileType::V | TileType::SE | TileType::SW => valid_dirs.push(adj_dir),
+                    _ => {}
+                },
+                Direction::S => match adj_type {
+                    TileType::V | TileType::NE | TileType::NW => valid_dirs.push(adj_dir),
+                    _ => {}
+                },
+                Direction::W => match adj_type {
+                    TileType::H | TileType::NE | TileType::SE => valid_dirs.push(adj_dir),
+                    _ => {}
+                },
+                Direction::E => match adj_type {
+                    TileType::H | TileType::NW | TileType::SW => valid_dirs.push(adj_dir),
+                    _ => {}
+                },
+            }
+        }
+
+        // Determine start tile type by checking connecting neighbor directions
+        let start_type = if valid_dirs.contains(&Direction::N) {
+            if valid_dirs.contains(&Direction::W) {
                 TileType::NW
-            }
-            else if keys.contains(&Direction::E) {
+            } else if valid_dirs.contains(&Direction::E) {
                 TileType::NE
-            }
-            else {
+            } else {
                 TileType::V
             }
-        }
-        else if keys.contains(&Direction::S) {
-            if keys.contains(&Direction::W) {
+        } else if valid_dirs.contains(&Direction::S) {
+            if valid_dirs.contains(&Direction::W) {
                 TileType::SW
-            }
-            else {
+            } else {
                 TileType::SE
             }
-        }
-        else {
+        } else {
             TileType::H
+        };
+
+        Tile {
+            position: self.start_tile_pos.clone(),
+            tile_type: start_type,
         }
+    }
+
+    pub fn get_adjacents(&self, position: &Position) -> HashMap<Direction, Position> {
+        let mut adjacents = HashMap::new();
+        for dir in Direction::all() {
+            if let Some(neighbor) = self.get_adjacent(position, dir) {
+                adjacents.insert(dir, neighbor);
+            }
+        }
+
+        adjacents
     }
 
     /// Gets all neighbors of the selected tile.
     pub fn get_neighbors(&self, tile: &Tile) -> HashMap<Direction, &Tile> {
-        let mut neighbors = HashMap::new();
-        for dir in [Direction::N, Direction::S, Direction::W, Direction::E] {
-            if let Some(neighbor) = self.get_neighbor(tile, dir) {
-                neighbors.insert(dir, neighbor);
+        let mut adjacents = HashMap::new();
+        for dir in Direction::all() {
+            if let Some(neighbor) = self.get_adjacent(&tile.position, dir) {
+                adjacents.insert(dir, neighbor);
             }
+        }
+        let valid_dirs = tile.tile_type.directions();
+        for dir in Direction::all() {
+            if !valid_dirs.contains(&dir) {
+                adjacents.remove(&dir);
+            }
+        }
+
+        let mut neighbors = HashMap::new();
+        for (dir, pos) in adjacents {
+            let neighbor = self.tile_map.get(&pos).unwrap();
+            neighbors.insert(dir, neighbor);
         }
         neighbors
     }
@@ -163,6 +210,13 @@ enum Direction {
     E,
 }
 
+impl Direction {
+    /// Gets vector of all directions.
+    pub fn all() -> Vec<Direction> {
+        vec![Direction::N, Direction::S, Direction::W, Direction::E]
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum TileType {
     V,
@@ -171,7 +225,6 @@ enum TileType {
     NW,
     SW,
     SE,
-    Start,
 }
 
 impl TileType {
@@ -183,7 +236,6 @@ impl TileType {
             TileType::NW => 'J',
             TileType::SW => '7',
             TileType::SE => 'F',
-            TileType::Start => 'S',
         }
     }
 
@@ -195,8 +247,19 @@ impl TileType {
             'J' => Some(TileType::NW),
             '7' => Some(TileType::SW),
             'F' => Some(TileType::SE),
-            'S' => Some(TileType::Start),
             _ => None,
+        }
+    }
+
+    /// Gets the directions this tile type connects to.
+    pub fn directions(&self) -> Vec<Direction> {
+        match self {
+            TileType::V => vec![Direction::N, Direction::S],
+            TileType::H => vec![Direction::W, Direction::E],
+            TileType::NE => vec![Direction::N, Direction::E],
+            TileType::NW => vec![Direction::N, Direction::W],
+            TileType::SW => vec![Direction::S, Direction::W],
+            TileType::SE => vec![Direction::S, Direction::E],
         }
     }
 }
