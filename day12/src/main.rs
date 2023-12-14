@@ -29,13 +29,20 @@ struct Row {
 impl Row {
     pub fn new(line: &str) -> Self {
         let parts: Vec<&str> = line.split(' ').collect();
-        let springs: Vec<Spring> = parts[0].chars().map(|c| Spring::from_char(c)).collect();
-        let groups = parts[1]
+        let mut springs: Vec<Spring> = parts[0].chars().map(|c| Spring::from_char(c)).collect();
+        let groups: Vec<usize> = parts[1]
             .split(',')
             .map(|s| s.parse::<usize>().unwrap())
             .collect();
 
-        Row { springs, groups }
+        springs.push(Spring::Unknown);
+        let unfolded_springs = (0..5).map(|_| springs.clone()).concat();
+        let unfolded_groups = (0..5).map(|_| groups.clone()).concat();
+
+        Row {
+            springs: unfolded_springs,
+            groups: unfolded_groups,
+        }
     }
 
     /// Calculates the bad spring group sizes.
