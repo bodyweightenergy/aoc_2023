@@ -14,7 +14,7 @@ fn main() {
     let mut cnt = 0;
 
     for row in rows {
-        let a = row.get_possible_arrangements();
+        let a = row.get_arrangements_bruteforce();
         cnt += a.len();
     }
 
@@ -68,7 +68,7 @@ impl Row {
     }
 
     /// Calculates all possible known arrangements.
-    pub fn get_possible_arrangements(&self) -> Vec<Vec<Spring>> {
+    pub fn get_arrangements_bruteforce(&self) -> Vec<Vec<Spring>> {
         let known_springs = [Spring::Good, Spring::Bad];
         let mut good_spring_arrangements = vec![];
 
@@ -108,6 +108,10 @@ impl Row {
         // println!("");
         good_spring_arrangements
     }
+
+    // pub fn get_arrangements_algo(&self) -> Vec<Vec<Spring>> {
+
+    // }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
