@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range, time::Instant};
+use std::{collections::HashMap, ops::Range, time::Instant, fmt::Display};
 
 use tools::Opt;
 
@@ -28,19 +28,25 @@ fn main() {
 
     let mut arena = Arena::new(lines);
 
-    arena.rotate_ccw();
     let start = Instant::now();
     let mut loads = vec![];
-    for n in 0..1000 {
-        // let start2 = Instant::now();
-        arena.rotate_cw();
-        arena.tilt_west();
-        // let elapsed2 = Instant::now() - start2;
-        // println!("Cycle {elapsed2:?}");
-        let load = arena.calc_north_load();
-        println!("[{n}] Load = {}", load);
-        if n > (1000 - 80) {
-            loads.push(load);
+    let directions_cycle = vec![
+        Direction::North,
+        Direction::West,
+        Direction::South,
+        Direction::East,
+    ];
+    for n in 0..250usize {
+        for (i, dir) in directions_cycle.iter().enumerate() {
+            // let start2 = Instant::now();
+            arena.tilt(*dir);
+            // let elapsed2 = Instant::now() - start2;
+            // println!("Cycle {elapsed2:?}");
+            let load = arena.calc_north_load();
+            println!("[{}] ({dir}) Load = {}", n + i, load);
+            if n > (250 - 100) {
+                loads.push(load);
+            }
         }
     }
     let elapsed = Instant::now() - start;
@@ -67,7 +73,7 @@ impl Arena {
 
     /// Rotates all data counter-clockwise (North becomes West).
     pub fn rotate_ccw(&mut self) {
-        let mut new_data = vec![vec![0u8; 100]; 100];
+        let mut new_data = vec![vec![0u8; self.size]; self.size];
         for y in 0..self.size {
             for x in 0..self.size {
                 let old_pos = (x, y);
@@ -77,12 +83,6 @@ impl Arena {
         }
 
         self.data = new_data;
-    }
-
-    pub fn rotate_cw(&mut self) {
-        for _ in 0..3 {
-            self.rotate_ccw()
-        }
     }
 
     pub fn get(&self, pos: (usize, usize)) -> u8 {
@@ -126,6 +126,38 @@ impl Arena {
             load += coeff * ball_ct;
         }
         load
+    }
+
+    pub fn tilt(&mut self, direction: Direction) {
+        let ccw_rotations_to_west = direction as u32;
+        for _ in 0..ccw_rotations_to_west {
+            self.rotate_ccw();
+        }
+        self.tilt_west();
+        let ccw_rotations_back = 4 - ccw_rotations_to_west;
+        for _ in 0..ccw_rotations_back {
+            self.rotate_ccw();
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Direction {
+    West = 0,
+    North = 1,
+    East = 2,
+    South = 3,
+}
+
+impl Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let c = match self {
+            Direction::West => 'W',
+            Direction::North => 'N',
+            Direction::East => 'E',
+            Direction::South => 'S',
+        };
+        write!(f, "{c}")
     }
 }
 
