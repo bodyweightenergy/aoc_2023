@@ -29,4 +29,8 @@ impl Opt {
     pub fn input(&self) -> String {
         std::fs::read_to_string(self.file()).unwrap()
     }
+
+    pub fn lines(&self) -> Vec<String> {
+        self.input().lines().map(|l| l.to_owned()).collect()
+    }
 }
